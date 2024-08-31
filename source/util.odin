@@ -17,3 +17,9 @@ screen_center :: proc() -> v2 {
 	y := f32(rl.GetScreenHeight()) * .5
 	return {x, y}
 }
+
+screen_end :: proc() -> v2 {
+	x := f32(rl.GetScreenWidth())
+	y := f32(rl.GetScreenHeight())
+	return {x, y}
+}

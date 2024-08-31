@@ -11,7 +11,7 @@
 		{
 			"working_dir": "$project_path",
 			"name": "pirates_build",
-			"cmd": "odin run source -out:pirates.exe",
+			"cmd": "odin run source -out:pirates.exe -debug",
 			"file_regex":  "^(.+)\\(([0-9]+):([0-9]+)\\) (.+)$"
 		}	
 	]
