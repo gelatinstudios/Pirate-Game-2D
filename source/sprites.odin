@@ -117,6 +117,7 @@ sprites_init :: proc() {
 	im := rl.LoadImageFromMemory(".png", raw_data(png_data), i32(len(png_data)))
 	defer rl.UnloadImage(im)
 	spritesheet = rl.LoadTextureFromImage(im)
+	rl.SetTextureFilter(spritesheet, .TRILINEAR)
 }
 
 draw_sprite :: proc(sprite: Sprite, pos: v2, rot: f32) {

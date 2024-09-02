@@ -7,49 +7,82 @@ import rl "vendor:raylib"
 
 v2 :: [2]f32
 
-Entity :: struct {
-	sprite: Sprite,
-	pos, vel, acc, prev_acc: v2,
-}
+WORLD_MIN_X :: (-WORLD_TILE_COUNT_X/2) * tile_width
+WORLD_MAX_X ::  (WORLD_TILE_COUNT_X/2) * tile_width
 
-game: struct {
-	is_paused: bool,
-	camera: rl.Camera2D,
-	entities: [dynamic]Entity
-}
+WORLD_MIN_Y :: (-WORLD_TILE_COUNT_Y/2) * tile_height
+WORLD_MAX_Y ::  (WORLD_TILE_COUNT_Y/2) * tile_height
 
-game_init :: proc() {
-	game.camera.zoom = 1
+WORLD_MIN :: v2 {WORLD_MIN_X, WORLD_MIN_Y}
+WORLD_MAX :: v2 {WORLD_MAX_X, WORLD_MAX_Y}
+
+
+
+
+is_paused: bool
+camera: rl.Camera2D
+
+
+init :: proc() {
+	rl.InitWindow(1280, 720, "VERY COOL PIRATE GAME YES")
+
+	font_init()
+	sprites_init()
+	tiles_init()						
+	world_tiles_init()
+	entities_init()
+
+	camera.zoom = 1
+
+	when false {
+		gen_labeled_tilesheet_as_png()
+	}
 }
 
 update :: proc() {
 	dt := rl.GetFrameTime()
 
-	VEL :: 100
-	if rl.IsKeyDown(.LEFT)  do game.camera.target.x -= dt * VEL
-	if rl.IsKeyDown(.RIGHT) do game.camera.target.x += dt * VEL
-	if rl.IsKeyDown(.UP)    do game.camera.target.y -= dt * VEL
-	if rl.IsKeyDown(.DOWN)  do game.camera.target.y += dt * VEL
+	player := get_player()
 
-	game.camera.offset = screen_end()*.5
+	ship_update(player, get_left_stick())
+
+	for &e in entities[1:] {
+		switch e.type {
+			case .Player: // ignore
+
+			case .Enemy:
+				ship_update(&e, get_ai_move(e))
+
+			case .Cannonball:
+				//entity_move(&e)
+		}
+	}
+
+	camera.target = player.pos
+	camera.offset = screen_end()*.5
 }
 
 draw :: proc() {
 	rl.ClearBackground(hex_color(0x60EBDB))
 
-	rl.BeginMode2D(game.camera)
-	world_tiles_draw(game.camera)
-	rl.EndMode2D()
+	{
+		rl.BeginMode2D(camera)
+		defer rl.EndMode2D()
+
+		world_tiles_draw(camera)
+
+		for entity in entities {
+			draw_sprite(entity.sprite, entity.pos, entity.rot - 90)
+		}
+	}
+
+	when true {
+		rl.DrawFPS(5,5)
+	}
 }
 
 main :: proc() {
-	rl.InitWindow(1280, 720, "VERY COOL PIRATE GAME YES")
-
-	font_init()
-	sprites_init()
-	tiles_init()
-	world_tiles_init()
-	game_init()
+	init()
 
 	for !rl.WindowShouldClose() {
 		free_all(context.temp_allocator)

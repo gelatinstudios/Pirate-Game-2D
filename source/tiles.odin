@@ -6,16 +6,17 @@ import "core:math/rand"
 
 import rl "vendor:raylib"
 
-
-tilesheet: rl.Texture
+Tile_Rotation :: enum u8 {None, Rot90, Rot180, Rot270}
+Tile_ID :: distinct u8
 
 tile_width :: 64
 tile_height :: 64
 
-tile_counts: [2]i32
-tile_count: i32
 
-Tile_Rotation :: enum u8 {None, Rot90, Rot180, Rot270}
+tilesheet: rl.Texture
+tile_counts: [2]int
+tile_count: int
+
 
 rot_angles := [Tile_Rotation]f32 {
 	.None = 0,
@@ -30,22 +31,29 @@ tiles_init :: proc() {
 	defer rl.UnloadImage(im)
 	tilesheet = rl.LoadTextureFromImage(im)
 
-	tile_counts = {im.width / tile_width, im.height / tile_height}
+	w := int(im.width)
+	h := int(im.height)
+	tile_counts = {w / tile_width, h / tile_height}
 	tile_count = tile_counts.x * tile_counts.y
 }
 
-tile_draw :: proc(index: i32, pos: v2, rot: Tile_Rotation) {
-	assert(index < tile_count)
-
+get_tile_rect :: proc(id: Tile_ID) -> rl.Rectangle {
+	index := int(id)
 	tile_x := index % tile_counts.x
 	tile_y := index / tile_counts.x
 
-	source := rl.Rectangle { 
+	return { 
 		f32(tile_x) * tile_width, 
 		f32(tile_y) * tile_height, 
 		tile_width, 
 		tile_height 
 	}
+}
+
+tile_draw :: proc(id: Tile_ID, pos: v2, rot: Tile_Rotation) {
+	assert(int(id) < tile_count)
+
+	source := get_tile_rect(id)
 
 	dest := rl.Rectangle {
 		pos.x,
@@ -61,13 +69,72 @@ tile_draw :: proc(index: i32, pos: v2, rot: Tile_Rotation) {
 
 
 
-WORLD_TILE_COUNT_X :: 50
-WORLD_TILE_COUNT_Y :: 50
+// NOTE: not for in-game-use
+gen_labeled_tilesheet_as_png :: proc() {
+	padding :: 32
+	render_texture := rl.LoadRenderTexture(tilesheet.width  + padding * cast(i32)tile_counts.x, 
+										   tilesheet.height + padding * cast(i32)tile_counts.y)
+	defer rl.UnloadRenderTexture(render_texture)
+
+	rl.BeginTextureMode(render_texture)
+
+	id: Tile_ID
+	for tile_y in 0..<tile_counts.y {
+		for tile_x in 0..<tile_counts.x {
+			x := f32(tile_x * (tile_width  + padding))
+			y := f32(tile_y * (tile_height + padding) )
+			pos := v2 {x, y}
+
+			source := get_tile_rect(id)
+			rl.DrawTextureRec(tilesheet, source, pos, rl.WHITE)
+
+			pos.x += tile_width*.5
+			pos.y += tile_height + padding*.5
+
+			draw_text(.Regular, rl.WHITE, pos, fmt.ctprint(id))
+
+			id += 1
+		}
+	}
+
+	rl.EndTextureMode()
+
+	im := rl.LoadImageFromTexture(render_texture.texture)
+	rl.ImageFlipVertical(&im)
+	rl.ExportImage(im, "tilesheet.png")
+}
+
+Tile_Prop_ID :: distinct u8
+TILE_PROP_ID_MAX :: 12
+
+tile_prop_tile_id :: proc(id: Tile_Prop_ID) -> (Tile_ID, bool) {
+	switch id {
+		case  1: return 48, true
+		case  2: return 49, true
+		case  3: return 50, true
+		case  4: return 64, true
+		case  5: return 65, true
+		case  6: return 66, true
+		case  7: return 69, true
+		case  8: return 70, true
+		case  9: return 71, true
+		case 10: return 86, true
+		case 11: return 87, true
+	}
+	return 0, false
+}
+
+
+WORLD_TILE_COUNT_X :: 100
+WORLD_TILE_COUNT_Y :: 100
 
 World_Tile :: bit_field u16 {
-	back_tile_id:  u8 | 7,
-	front_tile_id: u8 | 7,
-	rot: Tile_Rotation | 2 
+	tile: Tile_ID | 7,
+	prop: Tile_Prop_ID | 4,
+	rot: Tile_Rotation | 2,
+	is_land: bool | 1,
+	mark: bool | 1, // various uses
+	// we have one more bit...
 }
 
 world_tiles: [WORLD_TILE_COUNT_X * WORLD_TILE_COUNT_Y] World_Tile
@@ -95,13 +162,134 @@ pos_to_world_tile :: proc(pos: v2) -> (int, int) {
 	return x, y
 }
 
+has_land :: proc(x, y: int) -> bool {
+	index := world_tile_index(x, y)
+	if index >= 0 {
+		return world_tiles[index].is_land
+	}
+	return false
+}
 
 
 world_tiles_init :: proc() {
+	WATER :: 72
+
 	for &tile in world_tiles {
-		tile.back_tile_id = u8(rand.int31_max(tile_count))
-		tile.front_tile_id = u8(rand.int31_max(tile_count))
-		tile.rot = rand.choice_enum(Tile_Rotation)
+		tile.tile = WATER
+		tile.is_land = false
+		tile.rot = .Rot90
+	}
+
+	ISLAND_SQUARE_COUNT :: 100
+
+	for _ in 0 ..< ISLAND_SQUARE_COUNT {
+		start_x := rand.int_max(WORLD_TILE_COUNT_X - 5)
+		start_y := rand.int_max(WORLD_TILE_COUNT_Y - 5)
+
+		end_x := clamp(start_x + 3 + rand.int_max(10), 0, WORLD_TILE_COUNT_X-1)
+		end_y := clamp(start_y + 3 + rand.int_max(10), 0, WORLD_TILE_COUNT_Y-1)
+
+		for y in start_y ..= end_y {
+			for x in start_x ..= end_x {
+				wt := &world_tiles[x + y * WORLD_TILE_COUNT_X]
+				wt.is_land = true
+				wt.mark = true
+			}
+		}
+	}
+
+	for y in 0 ..< WORLD_TILE_COUNT_Y  {
+		for x in 0 ..< WORLD_TILE_COUNT_X {
+			wt := &world_tiles[x + y * WORLD_TILE_COUNT_X]
+			wt.rot = .None
+
+			if wt.is_land {
+				land_up    := has_land(x + 0, y - 1)
+				land_down  := has_land(x + 0, y + 1)
+				land_left  := has_land(x - 1, y + 0)
+				land_right := has_land(x + 1, y + 0)
+
+				n: u32
+				n |= u32(land_up)    << 3
+				n |= u32(land_down)  << 2
+				n |= u32(land_left)  << 1
+				n |= u32(land_right) << 0
+
+				if wt.mark {
+					wt.mark = false
+					switch n {
+						case 0b0101: wt.tile = 0
+						case 0b0111: wt.tile = 1
+						case 0b0110: wt.tile = 2
+						case 0b1101: wt.tile = 16
+
+						case 0b1111: 
+							if !has_land(x + 1, y + 1) {
+								wt.tile = 3
+							} else if !has_land(x - 1, y + 1) {
+								wt.tile = 4
+							} else if !has_land(x + 1, y - 1) {
+								wt.tile = 19
+							} else if !has_land(x - 1, y - 1) {
+								wt.tile = 20
+							} else {
+								if rand_bool() {
+									wt.tile = 67
+								} else {
+									wt.tile = 68
+								}
+
+								wt.rot = rand.choice_enum(Tile_Rotation)
+
+								if rand.int_max(7) == 0 {
+									wt.prop = auto_cast rand.int_max(TILE_PROP_ID_MAX)
+								}
+							}
+
+						case 0b1110: wt.tile = 18
+						case 0b1001: wt.tile = 32
+						case 0b1011: wt.tile = 33
+						case 0b1010: wt.tile = 34
+					}
+				} else {
+					switch n {
+						case 0b0101: wt.tile = 5
+						case 0b0111: wt.tile = rand_bool() ? 6 : 7
+						case 0b0110: wt.tile = 8
+						case 0b1101: wt.tile = rand_bool() ? 21 : 37
+
+						case 0b1111: 
+							if !has_land(x + 1, y + 1) {
+								wt.tile = 35
+							} else if !has_land(x - 1, y + 1) {
+								wt.tile = 36
+							} else if !has_land(x + 1, y - 1) {
+								wt.tile = 51
+							} else if !has_land(x - 1, y - 1) {
+								wt.tile = 52
+							} else {
+								switch rand.int_max(4) {
+									case 0: wt.tile = 22
+									case 1: wt.tile = 23
+									case 2: wt.tile = 38
+									case 3: wt.tile = 39
+								}
+
+								wt.rot = rand.choice_enum(Tile_Rotation)
+
+								if rand.int_max(7) == 0 {
+									wt.prop = auto_cast rand.int_max(TILE_PROP_ID_MAX)
+								}
+							}
+
+						case 0b1110: wt.tile = rand_bool() ? 24 : 40
+						case 0b1001: wt.tile = 53
+						case 0b1011: wt.tile = rand_bool() ? 54 : 55
+						case 0b1010: wt.tile = 56
+					}
+				}
+			}
+		}
 	}
 }
 
@@ -118,9 +306,16 @@ world_tiles_draw :: proc(camera: rl.Camera2D) {
 				pos := world_tile_to_pos(tile_x, tile_y)
 				rot := tile.rot
 
-				tile_draw(i32(tile.back_tile_id), pos, rot)
-				tile_draw(i32(tile.front_tile_id), pos, rot)
+
+				tile_draw(72, pos, .Rot90)
+				tile_draw(tile.tile, pos, rot)
+
+				id, ok := tile_prop_tile_id(tile.prop)
+				if ok {
+					tile_draw(id, pos, rot)
+				}
 			}
 		}
 	}
 }
+
