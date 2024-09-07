@@ -16,7 +16,7 @@ Entity :: struct {
 	type: Entity_Type,
 	sprite: Sprite,
 	pos, vel: v2,
-	rot: f32,
+	rot, scale: f32,
 }
 
 entity_move :: proc(e: ^Entity, acc: v2, friction: f32) {
@@ -80,11 +80,12 @@ entities_init :: proc() {
 	}
 }
 
-add_entity :: proc(sprite_name: string, pos: v2, rot: f32 = 0) {
+add_entity :: proc(sprite_name: string, pos: v2, rot: f32 = 0, scale: f32 = 1) {
 	entity := Entity {
 		sprite = sprites[sprite_name],
 		pos = pos,
 		rot = rot,
+		scale = scale,
 	}
 	append(&entities, entity)
 }

@@ -2,6 +2,7 @@
 package pirates
 
 import "core:fmt"
+import "core:math"
 import "core:math/rand"
 
 import rl "vendor:raylib"
@@ -157,8 +158,8 @@ world_tile_to_pos :: proc(x, y: int) -> v2 {
 }
 
 pos_to_world_tile :: proc(pos: v2) -> (int, int) {
-	x := int(pos.x / tile_width)  + WORLD_TILE_COUNT_X/2
-	y := int(pos.y / tile_height) + WORLD_TILE_COUNT_X/2
+	x := math.floor_div(int(pos.x), tile_width)  + WORLD_TILE_COUNT_X/2
+	y := math.floor_div(int(pos.y), tile_height) + WORLD_TILE_COUNT_X/2
 	return x, y
 }
 
@@ -319,3 +320,50 @@ world_tiles_draw :: proc(camera: rl.Camera2D) {
 	}
 }
 
+
+World_Tile_Iterator :: struct {
+	current: [2]int,
+	start, end: [2]int,
+}
+
+create_world_tile_iterator :: proc(e: Entity) -> World_Tile_Iterator {
+	min_x := max(f32)
+	min_y := max(f32)
+	max_x := min(f32)
+	max_y := min(f32)
+	for v in get_vertices(e) {
+		min_x = min(min_x, v.x)
+		min_y = min(min_y, v.y)
+		max_x = max(max_x, v.x)
+		max_y = max(max_y, v.y)
+	}
+
+	result: World_Tile_Iterator	
+	result.start.x, result.start.y = pos_to_world_tile(v2 {min_x, min_y})
+	result.end.x, result.end.y = pos_to_world_tile(v2 {max_x, max_y})
+	result.current = result.start
+	return result
+}
+
+World_Tile_Info :: struct {
+	wt: World_Tile,
+	tile_pos: [2]int,
+	world_pos: v2,
+}
+
+world_tile_iterate :: proc(it: ^World_Tile_Iterator) -> (result: World_Tile_Info, cont: bool) {
+	if world_tile_in_bounds(it.current.x, it.current.y) {
+		result.wt = world_tiles[it.current.x + it.current.y * WORLD_TILE_COUNT_Y]
+		result.tile_pos = it.current
+		result.world_pos = world_tile_to_pos(it.current.x, it.current.y)
+	}
+
+	cont = it.current.x == it.end.x || it.current.y <= it.end.y
+	it.current.x += 1
+	if it.current.x > it.end.x {
+		it.current.x = it.start.x
+		it.current.y += 1
+	}
+
+	return
+}
