@@ -163,13 +163,18 @@ pos_to_world_tile :: proc(pos: v2) -> (int, int) {
     return x, y
 }
 
-has_land :: proc(x, y: int) -> bool {
+world_tile_has_land :: proc(x, y: int) -> bool {
     index := world_tile_index(x, y)
     if index >= 0 {
         return world_tiles[index].is_land
     }
     return false
 }
+
+pos_has_land :: proc(v: v2) -> bool {
+    return world_tile_has_land(pos_to_world_tile(v))
+}
+
 
 
 world_tiles_init :: proc() {
@@ -205,10 +210,10 @@ world_tiles_init :: proc() {
             wt.rot = .None
 
             if wt.is_land {
-                land_up    := has_land(x + 0, y - 1)
-                land_down  := has_land(x + 0, y + 1)
-                land_left  := has_land(x - 1, y + 0)
-                land_right := has_land(x + 1, y + 0)
+                land_up    := world_tile_has_land(x + 0, y - 1)
+                land_down  := world_tile_has_land(x + 0, y + 1)
+                land_left  := world_tile_has_land(x - 1, y + 0)
+                land_right := world_tile_has_land(x + 1, y + 0)
 
                 n: u32
                 n |= u32(land_up)    << 3
@@ -225,13 +230,13 @@ world_tiles_init :: proc() {
                         case 0b1101: wt.tile = 16
 
                         case 0b1111: 
-                            if !has_land(x + 1, y + 1) {
+                            if !world_tile_has_land(x + 1, y + 1) {
                                 wt.tile = 3
-                            } else if !has_land(x - 1, y + 1) {
+                            } else if !world_tile_has_land(x - 1, y + 1) {
                                 wt.tile = 4
-                            } else if !has_land(x + 1, y - 1) {
+                            } else if !world_tile_has_land(x + 1, y - 1) {
                                 wt.tile = 19
-                            } else if !has_land(x - 1, y - 1) {
+                            } else if !world_tile_has_land(x - 1, y - 1) {
                                 wt.tile = 20
                             } else {
                                 if rand_bool() {
@@ -260,13 +265,13 @@ world_tiles_init :: proc() {
                         case 0b1101: wt.tile = rand_bool() ? 21 : 37
 
                         case 0b1111: 
-                            if !has_land(x + 1, y + 1) {
+                            if !world_tile_has_land(x + 1, y + 1) {
                                 wt.tile = 35
-                            } else if !has_land(x - 1, y + 1) {
+                            } else if !world_tile_has_land(x - 1, y + 1) {
                                 wt.tile = 36
-                            } else if !has_land(x + 1, y - 1) {
+                            } else if !world_tile_has_land(x + 1, y - 1) {
                                 wt.tile = 51
-                            } else if !has_land(x - 1, y - 1) {
+                            } else if !world_tile_has_land(x - 1, y - 1) {
                                 wt.tile = 52
                             } else {
                                 switch rand.int_max(4) {

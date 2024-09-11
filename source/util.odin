@@ -46,10 +46,6 @@ v2_to_angle :: proc(v: v2) -> f32 {
     return rl.RAD2DEG * math.atan2(v.y, v.x)
 }
 
-rand_bool :: proc(n := 2) -> bool {
-    return rand.int_max(n) == 0
-}
-
 cos :: proc(x: f32) -> f32 {
     return math.cos(x*rl.DEG2RAD)
 }
@@ -71,4 +67,20 @@ get_vertices :: proc(e: Entity) -> [4]v2 {
         e.pos - x_extent + y_extent,
         e.pos + x_extent + y_extent,
     }
+}
+
+
+rand_pos :: proc() -> v2 {
+    return {
+        rand.float32_uniform(WORLD_MIN_X, WORLD_MAX_X),
+        rand.float32_uniform(WORLD_MIN_Y, WORLD_MAX_Y),
+    }
+}
+
+rand_bool :: proc(n := 2) -> bool {
+    return rand.int_max(n) == 0
+}
+
+rand_angle :: proc() -> f32 {
+    return rand.float32_uniform(0, 360)
 }

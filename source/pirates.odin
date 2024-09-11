@@ -71,16 +71,7 @@ draw :: proc() {
 
         world_tiles_draw(camera)
 
-        //for e in entities 
-        {
-            e := get_player()^
-            it := create_world_tile_iterator(e)
-
-            for wti in world_tile_iterate(&it) {
-                size := v2 {tile_width, tile_height}
-                rl.DrawRectangleV(wti.world_pos, size, rl.BLACK)
-            }
-
+        for e in entities {
             draw_sprite(e.sprite, e.pos, e.rot - 90)
         }
     }

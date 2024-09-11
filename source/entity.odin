@@ -1,6 +1,7 @@
 
 package pirates
 
+import "core:strings"
 import "core:math/linalg"
 import "core:math/rand"
 
@@ -21,9 +22,9 @@ Entity :: struct {
 
 entity_move :: proc(e: ^Entity, acc: v2, friction: f32) {
     dt := rl.GetFrameTime()
-
     e.pos += dt*e.vel + dt*dt*acc
     e.vel += dt*acc
+
     e.vel *= 1 - friction
 }
 
@@ -68,15 +69,21 @@ ENEMY_COUNT :: 512
 entities: [dynamic]Entity
 
 entities_init :: proc() {
-    add_entity("ship (1)", {}, 180)
+    player_sprite :: "ship (3)"
+
+    add_ship(player_sprite)
+
+    ship_sprites: [dynamic]string
+    defer delete(ship_sprites)
+
+    for name in sprites {
+        if name != player_sprite && strings.contains(name, "ship") {
+            append(&ship_sprites, name)
+        }
+    }
 
     for _ in 0 ..< ENEMY_COUNT {
-        pos := v2 {
-            rand.float32_uniform(WORLD_MIN_X, WORLD_MAX_X),
-            rand.float32_uniform(WORLD_MIN_Y, WORLD_MAX_Y),
-        }
-        rot := rand.float32_uniform(0, 360)
-        add_entity("ship (2)", pos, rot)
+        add_ship(rand.choice(ship_sprites[:]))
     }
 }
 
@@ -88,6 +95,14 @@ add_entity :: proc(sprite_name: string, pos: v2, rot: f32 = 0, scale: f32 = 1) {
         scale = scale,
     }
     append(&entities, entity)
+}
+
+add_ship :: proc(sprite_name: string) {
+    pos := rand_pos()
+    for pos_has_land(pos) {
+        pos = rand_pos()
+    }
+    add_entity(sprite_name, pos, rot = rand.float32_uniform(0, 360))
 }
 
 get_player :: proc() -> ^Entity {
