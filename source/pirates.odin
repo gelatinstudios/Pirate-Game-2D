@@ -51,7 +51,7 @@ update :: proc() {
             case .Player: // ignore
 
             case .Enemy:
-                ship_update(&e, get_ai_move(e))
+                //ship_update(&e, get_ai_move(e))
 
             case .Cannonball:
                 //entity_move(&e)

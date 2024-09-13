@@ -126,8 +126,8 @@ tile_prop_tile_id :: proc(id: Tile_Prop_ID) -> (Tile_ID, bool) {
 }
 
 
-WORLD_TILE_COUNT_X :: 100
-WORLD_TILE_COUNT_Y :: 100
+WORLD_TILE_COUNT_X :: 1000
+WORLD_TILE_COUNT_Y :: 1000
 
 World_Tile :: bit_field u16 {
     tile: Tile_ID | 7,
@@ -186,7 +186,7 @@ world_tiles_init :: proc() {
         tile.rot = .Rot90
     }
 
-    ISLAND_SQUARE_COUNT :: 100
+    ISLAND_SQUARE_COUNT :: 1000
 
     for _ in 0 ..< ISLAND_SQUARE_COUNT {
         start_x := rand.int_max(WORLD_TILE_COUNT_X - 5)

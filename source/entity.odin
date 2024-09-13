@@ -7,7 +7,7 @@ import "core:math/rand"
 
 import rl "vendor:raylib"
 
-Entity_Type :: enum {
+Entity_Type :: enum u8 {
     Player,
     Enemy,
     Cannonball,
@@ -34,6 +34,7 @@ entity_move :: proc(e: ^Entity, acc: v2, friction: f32) {
 ship_update :: proc(e: ^Entity, input: v2) {
     SHIP_ACC :: 20
     SHIP_FRICTION :: 0.0001
+    LAND_FRICTION :: SHIP_FRICTION * 15
     SHIP_MAX_VEL :: 70 // not really max, used for rotation
 
     dt := rl.GetFrameTime()
@@ -49,29 +50,34 @@ ship_update :: proc(e: ^Entity, input: v2) {
 
     t := linalg.dot(input * SHIP_ACC, new_dir)
 
-    entity_move(e, input * SHIP_ACC * t, SHIP_FRICTION)
+    friction: f32 = SHIP_FRICTION
+    if pos_has_land(e.pos) {
+        friction += LAND_FRICTION
+    }
+
+    entity_move(e, input * SHIP_ACC * t, friction)
 }
 
 
 
 
 get_ai_move :: proc(e: Entity) -> v2 {
-    // TODO:
-    return {}
+    target := get_player().pos
+    return linalg.normalize0(target - e.pos)
 }
 
 
 
 PLAYER_ENTITY_INDEX :: 0
 
-ENEMY_COUNT :: 512
+ENEMY_COUNT :: 2048
 
 entities: [dynamic]Entity
 
 entities_init :: proc() {
     player_sprite :: "ship (3)"
 
-    add_ship(player_sprite)
+    add_ship(player_sprite, .Player)
 
     ship_sprites: [dynamic]string
     defer delete(ship_sprites)
@@ -83,12 +89,13 @@ entities_init :: proc() {
     }
 
     for _ in 0 ..< ENEMY_COUNT {
-        add_ship(rand.choice(ship_sprites[:]))
+        add_ship(rand.choice(ship_sprites[:]), .Enemy)
     }
 }
 
-add_entity :: proc(sprite_name: string, pos: v2, rot: f32 = 0, scale: f32 = 1) {
+add_entity :: proc(type: Entity_Type, sprite_name: string, pos: v2, rot: f32 = 0, scale: f32 = 1) {
     entity := Entity {
+        type = type,
         sprite = sprites[sprite_name],
         pos = pos,
         rot = rot,
@@ -97,12 +104,13 @@ add_entity :: proc(sprite_name: string, pos: v2, rot: f32 = 0, scale: f32 = 1) {
     append(&entities, entity)
 }
 
-add_ship :: proc(sprite_name: string) {
+add_ship :: proc(sprite_name: string, type: Entity_Type) {
     pos := rand_pos()
     for pos_has_land(pos) {
         pos = rand_pos()
     }
-    add_entity(sprite_name, pos, rot = rand.float32_uniform(0, 360))
+
+    add_entity(type, sprite_name, pos, rot = rand.float32_uniform(0, 360))
 }
 
 get_player :: proc() -> ^Entity {
