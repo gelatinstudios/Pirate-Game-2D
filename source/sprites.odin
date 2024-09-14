@@ -1,6 +1,9 @@
 
 package pirates
 
+import "core:strings"
+import "core:strconv"
+
 import rl "vendor:raylib"
 
 Sprite :: rl.Rectangle
@@ -110,6 +113,9 @@ sprites := map[string]rl.Rectangle {
     "wood (4)"       = { x=88,  y=440, width=26, height=7 },
 }
 
+ship_sprites: [dynamic]Sprite
+cannonball_sprite: Sprite
+
 spritesheet: rl.Texture
 
 sprites_init :: proc() {
@@ -118,9 +124,19 @@ sprites_init :: proc() {
     defer rl.UnloadImage(im)
     spritesheet = rl.LoadTextureFromImage(im)
     rl.SetTextureFilter(spritesheet, .TRILINEAR)
+
+    for name, sprite in sprites {
+        if strings.contains(name, "ship (") {
+            index, _ := strconv.parse_int(name[6:])
+            assert(index > 0)
+            assign_at(&ship_sprites, index, sprite)
+        }
+    }
+
+    cannonball_sprite = sprites["cannonBall"]
 }
 
-draw_sprite :: proc(sprite: Sprite, pos: v2, rot: f32) {
+draw_sprite :: proc(sprite: Sprite, pos: v2, rot: f32, scale: f32 = 1) {
     dest := rl.Rectangle { pos.x, pos.y, sprite.width, sprite.height }
     rl.DrawTexturePro(spritesheet, sprite, dest, v2{sprite.width, sprite.height}*.5, rot, rl.WHITE)
 }

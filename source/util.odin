@@ -34,6 +34,14 @@ get_left_stick :: proc() -> v2 {
     }
 }
 
+get_right_stick :: proc() -> v2 {
+    return {
+        rl.GetGamepadAxisMovement(0, .RIGHT_X),
+        rl.GetGamepadAxisMovement(0, .RIGHT_Y),
+    }
+}
+
+
 angle_to_v2 :: proc(angle: f32) -> v2 {
     a := rl.DEG2RAD * angle
     return {
@@ -55,11 +63,18 @@ sin :: proc(x: f32) -> f32 {
 }
 
 get_vertices :: proc(e: Entity) -> [4]v2 {
-    x_axis := v2 {sin(e.rot), -cos(e.rot)}
+    rot: f32 = 0
+    if ship, ok := e.variant.(Ship); ok {
+        rot = ship.rot
+    }
+
+    x_axis := v2 {sin(rot), -cos(rot)}
     y_axis := v2 {x_axis.y, -x_axis.x}
 
-    x_extent := x_axis * f32(e.sprite.width) * 0.5
-    y_extent := y_axis * f32(e.sprite.height) * 0.5
+    dims := get_entity_dims(e)
+
+    x_extent := x_axis * f32(dims.x) * 0.5
+    y_extent := y_axis * f32(dims.y) * 0.5
 
     return {
         e.pos - x_extent - y_extent,

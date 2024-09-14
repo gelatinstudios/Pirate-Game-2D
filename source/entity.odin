@@ -7,17 +7,30 @@ import "core:math/rand"
 
 import rl "vendor:raylib"
 
+ship_dims: [2]i32
+cannonball_dims: [2]i32
+
 Entity_Type :: enum u8 {
     Player,
     Enemy,
     Cannonball,
 }
 
+Ship :: struct {
+    sprite: int,
+    rot: f32,
+}
+
+Cannonball :: struct {
+    origin, target: v2,
+}
+
+Entity_Variant :: union { Ship, Cannonball }
+
 Entity :: struct {
     type: Entity_Type,
-    sprite: Sprite,
+    variant: Entity_Variant,
     pos, vel: v2,
-    rot, scale: f32,
 }
 
 entity_move :: proc(e: ^Entity, acc: v2, friction: f32) {
@@ -26,6 +39,15 @@ entity_move :: proc(e: ^Entity, acc: v2, friction: f32) {
     e.vel += dt*acc
 
     e.vel *= 1 - friction
+}
+
+get_entity_dims :: proc(e: Entity) -> [2]i32 {
+    switch e.type {
+        case .Player: return ship_dims
+        case .Enemy:  return ship_dims
+        case .Cannonball: return cannonball_dims
+    }
+    unreachable()
 }
 
 
@@ -39,14 +61,16 @@ ship_update :: proc(e: ^Entity, input: v2) {
 
     dt := rl.GetFrameTime()
 
-    a := angle_to_v2(e.rot)
+    ship := &e.variant.(Ship)
+
+    a := angle_to_v2(ship.rot)
     b := linalg.normalize0(input)
 
     vel_t := linalg.length(e.vel) / SHIP_MAX_VEL
     vel_t = clamp(vel_t*dt, 0, 1)
 
     new_dir := linalg.lerp(a, b, vel_t)
-    e.rot = v2_to_angle(new_dir)
+    ship.rot = v2_to_angle(new_dir)
 
     t := linalg.dot(input * SHIP_ACC, new_dir)
 
@@ -75,42 +99,40 @@ ENEMY_COUNT :: 2048
 entities: [dynamic]Entity
 
 entities_init :: proc() {
-    player_sprite :: "ship (3)"
+    player_sprite_index :: 3
 
-    add_ship(player_sprite, .Player)
-
-    ship_sprites: [dynamic]string
-    defer delete(ship_sprites)
-
-    for name in sprites {
-        if name != player_sprite && strings.contains(name, "ship") {
-            append(&ship_sprites, name)
-        }
-    }
+    add_ship(player_sprite_index, .Player)
 
     for _ in 0 ..< ENEMY_COUNT {
-        add_ship(rand.choice(ship_sprites[:]), .Enemy)
+        sprite: int
+        for sprite == 0 || sprite == player_sprite_index {
+            sprite = rand.int_max(len(ship_sprites))
+        }
+        add_ship(sprite, .Enemy)
     }
+
+    ship_sprite := sprites["ship (1)"]
+    ship_dims.x = i32(ship_sprite.width)
+    ship_dims.y = i32(ship_sprite.height)
+
+    cannonball_dims.x = i32(cannonball_sprite.width)
+    cannonball_dims.y = i32(cannonball_sprite.height)
 }
 
-add_entity :: proc(type: Entity_Type, sprite_name: string, pos: v2, rot: f32 = 0, scale: f32 = 1) {
-    entity := Entity {
-        type = type,
-        sprite = sprites[sprite_name],
-        pos = pos,
-        rot = rot,
-        scale = scale,
-    }
-    append(&entities, entity)
-}
-
-add_ship :: proc(sprite_name: string, type: Entity_Type) {
+add_ship :: proc(sprite: int, type: Entity_Type) {
     pos := rand_pos()
     for pos_has_land(pos) {
         pos = rand_pos()
     }
 
-    add_entity(type, sprite_name, pos, rot = rand.float32_uniform(0, 360))
+    e := Entity {
+        type = type,
+        variant = Ship {
+            sprite = sprite,
+        },
+        pos = pos,
+    }
+    append(&entities, e)
 }
 
 get_player :: proc() -> ^Entity {
