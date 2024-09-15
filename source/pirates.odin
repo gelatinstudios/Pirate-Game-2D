@@ -34,6 +34,7 @@ init :: proc() {
 
     font_init()
     sprites_init()
+    ui_init()
     tiles_init()                        
     world_tiles_init()
     entities_init()
@@ -43,6 +44,8 @@ init :: proc() {
     when false {
         gen_labeled_tilesheet_as_png()
     }
+
+    fmt.println("entity size =", size_of(Entity), "bytes")
 }
 
 update :: proc() {
@@ -72,18 +75,30 @@ update :: proc() {
                 cannon_aim = get_right_stick() * CANNON_AIM_MAG
 
             case .Fired: 
+                vel := linalg.normalize0(cannon_aim) * CANNONBALL_VEL_INIT
+                vel += player.vel
                 e := Entity {
                     type = .Cannonball,
                     variant = Cannonball {
                         origin = player.pos,
-                        target = player.pos + cannon_aim, // TODO: this is wrong
+                        target = player.pos + cannon_aim * 12, // TODO: this is wrong
+                        vel_from_player = player.vel,
                     },
                     pos = player.pos,
-                    vel = linalg.normalize0(cannon_aim) * CANNONBALL_VEL_INIT,
+                    vel = vel,
                 }
                 append(&entities, e)
         }
+
+        // TEST
+        when true {
+            s := &player.variant.(Ship)
+            if rl.IsGamepadButtonPressed(0, .LEFT_FACE_DOWN) do s.health -= 10
+            if rl.IsGamepadButtonPressed(0, .LEFT_FACE_UP)   do s.health += 10
+        }
     }
+
+    dt := rl.GetFrameTime()
 
     for i := 1; i < len(entities);  {
         e := &entities[i]
@@ -97,13 +112,28 @@ update :: proc() {
                 //ship_update(&e, get_ai_move(e))
 
             case .Cannonball:
-                v := e.variant.(Cannonball)
+                v := &e.variant.(Cannonball)
 
                 t := linalg.unlerp(v.origin, v.target, e.pos)
+
+                t.x = f32_normalize(t.x)
+                t.y = f32_normalize(t.y)
+
                 if t.x >= 1 || t.y >= 1 {
                     unordered_remove(&entities, i)
                     removed = true
                 }
+
+                avg_t := (t.x+t.y)*.5
+
+                if avg_t > .5 {
+                    v.scale = (1 - (avg_t - .5)*2)*CANNONBALL_SCALE_MAX
+                } else {
+                    v.scale = avg_t*2*CANNONBALL_SCALE_MAX
+                }
+
+                v.origin += dt * v.vel_from_player
+                v.target += dt * v.vel_from_player
 
                 entity_move(e, {}, 0)
         }
@@ -118,7 +148,7 @@ update :: proc() {
 CANNONBALL_SCALE_MAX :: 2
 
 draw :: proc() {
-    rl.ClearBackground(hex_color(0x60EBDB))
+    rl.ClearBackground(hex_color(0xff00ff))
 
     {
         rl.BeginMode2D(camera)
@@ -131,14 +161,26 @@ draw :: proc() {
                 case Ship:
                     draw_sprite(ship_sprites[v.sprite], e.pos, v.rot - 90)
 
+                    health_bar_padding :: 10
+
+                    l := cast(f32) max(get_entity_dims(e).x, get_entity_dims(e).y)
+
+                    health_bar_start := e.pos
+                    health_bar_start.x -= l*.5
+                    health_bar_start.y += l*.5 + health_bar_padding
+
+                    health_bar_end := health_bar_start
+                    health_bar_end.x += l
+
+                    draw_health_bar(health_bar_start, health_bar_end, v.health)
+
                 case Cannonball:
-                    t := linalg.unlerp(v.origin, v.target, e.pos)
-
-
-                    draw_sprite(cannonball_sprite, e.pos, 0)
+                    draw_sprite(cannonball_sprite, e.pos, 0, v.scale)
             }
         }
     }
+
+    draw_ui()
 
     when true {
         rl.DrawFPS(5,5)

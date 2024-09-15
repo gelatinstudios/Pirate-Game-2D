@@ -99,3 +99,11 @@ rand_bool :: proc(n := 2) -> bool {
 rand_angle :: proc() -> f32 {
     return rand.float32_uniform(0, 360)
 }
+
+
+f32_normalize :: proc(x: f32) -> f32 {
+    if math.is_nan(x) || math.is_inf(x) {
+        return 0
+    }
+    return x
+}

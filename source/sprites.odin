@@ -136,7 +136,7 @@ sprites_init :: proc() {
     cannonball_sprite = sprites["cannonBall"]
 }
 
-draw_sprite :: proc(sprite: Sprite, pos: v2, rot: f32, scale: f32 = 1) {
-    dest := rl.Rectangle { pos.x, pos.y, sprite.width, sprite.height }
-    rl.DrawTexturePro(spritesheet, sprite, dest, v2{sprite.width, sprite.height}*.5, rot, rl.WHITE)
+draw_sprite :: proc(sprite: Sprite, pos: v2, rot: f32, scale: f32 = 1, tint := rl.WHITE) {
+    dest := rl.Rectangle { pos.x, pos.y, sprite.width * scale, sprite.height * scale }
+    rl.DrawTexturePro(spritesheet, sprite, dest, v2{sprite.width, sprite.height}*.5 * scale, rot, tint)
 }
