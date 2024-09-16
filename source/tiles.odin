@@ -129,6 +129,8 @@ tile_prop_tile_id :: proc(id: Tile_Prop_ID) -> (Tile_ID, bool) {
 WORLD_TILE_COUNT_X :: 1000
 WORLD_TILE_COUNT_Y :: 1000
 
+WORLD_TILE_COUNT_TOTAL :: WORLD_TILE_COUNT_X * WORLD_TILE_COUNT_Y
+
 World_Tile :: bit_field u16 {
     tile: Tile_ID | 7,
     prop: Tile_Prop_ID | 4,
@@ -138,7 +140,7 @@ World_Tile :: bit_field u16 {
     // we have one more bit...
 }
 
-world_tiles: [WORLD_TILE_COUNT_X * WORLD_TILE_COUNT_Y] World_Tile
+world_tiles: [WORLD_TILE_COUNT_TOTAL] World_Tile
 
 world_tile_in_bounds :: proc(x, y: int) -> bool {
     return x >= 0 && x < WORLD_TILE_COUNT_X &&
@@ -371,4 +373,38 @@ world_tile_iterate :: proc(it: ^World_Tile_Iterator) -> (result: World_Tile_Info
     }
 
     return
+}
+
+
+
+// maps world tile positions to entity indices
+world_tile_entity_map: map[[2]i16][dynamic]i16
+
+world_tile_entity_key :: proc(x, y: int) -> [2]i16 {
+    key := [2]i16 {auto_cast x, auto_cast y}
+    return key
+}
+
+world_tile_entity_map_set :: proc() {
+    for _, &wte in world_tile_entity_map {
+        clear(&wte)
+    }
+
+    for e, i in entities {
+        key := world_tile_entity_key(pos_to_world_tile(e.pos))
+        if key not_in world_tile_entity_map {
+            world_tile_entity_map[key] = make([dynamic]i16)
+        }
+        append(&world_tile_entity_map[key], i16(i))
+    }
+}
+
+world_tile_entities :: proc(x, y: int) -> []i16 {
+    key := world_tile_entity_key(x, y)
+
+    if key not_in world_tile_entity_map {
+        return {}
+    }
+
+    return world_tile_entity_map[key][:]
 }

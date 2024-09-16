@@ -20,6 +20,10 @@ Ship :: struct {
     rot: f32,
 }
 
+damage_ship :: proc(s: ^Ship, damage: i32) {
+    s.health = clamp(s.health - damage, 0, SHIP_HEALTH_MAX)
+}
+
 Cannonball :: struct {
     origin, target: v2,
     vel_from_player: v2,

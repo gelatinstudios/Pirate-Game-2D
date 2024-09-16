@@ -63,7 +63,10 @@ update :: proc() {
         }
     }
 
+    world_tile_entity_map_set()
+
     player := get_player()
+    player_ship := &player.variant.(Ship)
 
     { // player update
         ship_update(player, get_left_stick())
@@ -92,24 +95,26 @@ update :: proc() {
 
         // TEST
         when true {
-            s := &player.variant.(Ship)
-            if rl.IsGamepadButtonPressed(0, .LEFT_FACE_DOWN) do s.health -= 10
-            if rl.IsGamepadButtonPressed(0, .LEFT_FACE_UP)   do s.health += 10
+            if rl.IsGamepadButtonPressed(0, .LEFT_FACE_DOWN) do player_ship.health -= 10
+            if rl.IsGamepadButtonPressed(0, .LEFT_FACE_UP)   do player_ship.health += 10
         }
     }
 
     dt := rl.GetFrameTime()
 
-    for i := 1; i < len(entities);  {
-        e := &entities[i]
+    entities_to_remove: [dynamic]i16
+    defer delete(entities_to_remove)
 
-        removed := false
-
+    for &e, i in entities {
         switch e.type {
             case .Player: // ignore
 
             case .Enemy:
-                //ship_update(&e, get_ai_move(e))
+                ship := &e.variant.(Ship)
+
+                if ship.health == 0 {
+                    append(&entities_to_remove, i16(i))
+                }
 
             case .Cannonball:
                 v := &e.variant.(Cannonball)
@@ -120,8 +125,21 @@ update :: proc() {
                 t.y = f32_normalize(t.y)
 
                 if t.x >= 1 || t.y >= 1 {
-                    unordered_remove(&entities, i)
-                    removed = true
+                    append(&entities_to_remove, i16(i))
+
+                    // check if cannonball hit ship
+                    indices := world_tile_entities(pos_to_world_tile(e.pos))
+
+                    for i in indices {
+                        e := &entities[i]
+
+
+                        ship, ok := &e.variant.(Ship)
+
+                        if ok {
+                            damage_ship(ship, 10)
+                        }
+                    }
                 }
 
                 avg_t := (t.x+t.y)*.5
@@ -135,10 +153,12 @@ update :: proc() {
                 v.origin += dt * v.vel_from_player
                 v.target += dt * v.vel_from_player
 
-                entity_move(e, {}, 0)
+                entity_move(&e, {}, 0)
         }
+    }
 
-        if !removed do i += 1
+    for i in entities_to_remove {
+        unordered_remove(&entities, int(i))
     }
 
     camera.target = player.pos
@@ -172,6 +192,7 @@ draw :: proc() {
                     health_bar_end := health_bar_start
                     health_bar_end.x += l
 
+                    // TODO: do this in the ui draw!
                     draw_health_bar(health_bar_start, health_bar_end, v.health)
 
                 case Cannonball:
