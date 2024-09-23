@@ -126,8 +126,8 @@ tile_prop_tile_id :: proc(id: Tile_Prop_ID) -> (Tile_ID, bool) {
 }
 
 
-WORLD_TILE_COUNT_X :: 1000
-WORLD_TILE_COUNT_Y :: 1000
+WORLD_TILE_COUNT_X :: 500
+WORLD_TILE_COUNT_Y :: 500
 
 WORLD_TILE_COUNT_TOTAL :: WORLD_TILE_COUNT_X * WORLD_TILE_COUNT_Y
 
@@ -175,6 +175,10 @@ world_tile_has_land :: proc(x, y: int) -> bool {
 
 pos_has_land :: proc(v: v2) -> bool {
     return world_tile_has_land(pos_to_world_tile(v))
+}
+
+pos_in_bounds :: proc(v: v2) -> bool {
+    return world_tile_in_bounds(pos_to_world_tile(v))
 }
 
 
@@ -322,6 +326,8 @@ world_tiles_draw :: proc(camera: rl.Camera2D) {
                 if ok {
                     tile_draw(id, pos, rot)
                 }
+            } else {
+                // TODO: fade effect here??
             }
         }
     }

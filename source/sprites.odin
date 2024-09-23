@@ -114,6 +114,7 @@ sprites := map[string]rl.Rectangle {
 }
 
 ship_sprites: [dynamic]Sprite
+explosion_sprites: [dynamic]Sprite
 cannonball_sprite: Sprite
 
 spritesheet: rl.Texture
@@ -130,6 +131,10 @@ sprites_init :: proc() {
             index, _ := strconv.parse_int(name[6:])
             assert(index > 0)
             assign_at(&ship_sprites, index, sprite)
+        }
+
+        if strings.contains(name, "explosion") {
+            append(&explosion_sprites, sprite)
         }
     }
 

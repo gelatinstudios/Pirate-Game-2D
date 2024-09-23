@@ -25,6 +25,10 @@ is_paused: bool
 camera: rl.Camera2D
 cannon_state: Cannon_State
 cannon_aim: v2
+player_is_alive: bool
+player_last_pos: v2
+
+OUT_OF_BOUNDS_DAMAGE :: 50
 
 CANNON_AIM_MAG :: 10
 CANNONBALL_VEL_INIT :: 100
@@ -35,11 +39,12 @@ init :: proc() {
     font_init()
     sprites_init()
     ui_init()
-    tiles_init()                        
+    tiles_init()
     world_tiles_init()
     entities_init()
 
     camera.zoom = 1
+    player_is_alive = true // might move to level begin or something
 
     when false {
         gen_labeled_tilesheet_as_png()
@@ -65,110 +70,142 @@ update :: proc() {
 
     world_tile_entity_map_set()
 
-    player := get_player()
-    player_ship := &player.variant.(Ship)
-
-    { // player update
-        ship_update(player, get_left_stick())
-
-        switch cannon_state {
-            case .Inactive: // do nothing
-
-            case .Aiming:
-                cannon_aim = get_right_stick() * CANNON_AIM_MAG
-
-            case .Fired: 
-                vel := linalg.normalize0(cannon_aim) * CANNONBALL_VEL_INIT
-                vel += player.vel
-                e := Entity {
-                    type = .Cannonball,
-                    variant = Cannonball {
-                        origin = player.pos,
-                        target = player.pos + cannon_aim * 12, // TODO: this is wrong
-                        vel_from_player = player.vel,
-                    },
-                    pos = player.pos,
-                    vel = vel,
-                }
-                append(&entities, e)
-        }
-
-        // TEST
-        when true {
-            if rl.IsGamepadButtonPressed(0, .LEFT_FACE_DOWN) do player_ship.health -= 10
-            if rl.IsGamepadButtonPressed(0, .LEFT_FACE_UP)   do player_ship.health += 10
-        }
-    }
-
     dt := rl.GetFrameTime()
 
     entities_to_remove: [dynamic]i16
     defer delete(entities_to_remove)
 
-    for &e, i in entities {
-        switch e.type {
-            case .Player: // ignore
+    for &e, i in entities do switch &v in e.variant {
+        case Ship:
+            if i == PLAYER_ENTITY_INDEX {
+                ship_update(&e, get_left_stick())
 
-            case .Enemy:
-                ship := &e.variant.(Ship)
+                switch cannon_state {
+                    case .Inactive: // do nothing
 
-                if ship.health == 0 {
-                    append(&entities_to_remove, i16(i))
+                    case .Aiming:
+                        cannon_aim = get_right_stick() * CANNON_AIM_MAG
+
+                    case .Fired:
+                        for &c in v.cannon_timers[:v.cannon_count] {
+                            if c <= 0 {
+                                c = CANNONBALL_GEN_TIME
+
+                                vel := linalg.normalize0(cannon_aim) * CANNONBALL_VEL_INIT
+                                vel += e.vel
+                                e := Entity {
+                                    variant = Cannonball {
+                                        origin = e.pos,
+                                        target = e.pos + cannon_aim * 12, // TODO: this is wrong
+                                        vel_from_player = e.vel,
+                                    },
+                                    pos = e.pos,
+                                    vel = vel,
+                                }
+                                append(&entities, e)
+                                
+                                break
+                            }
+                        }
                 }
 
-            case .Cannonball:
-                v := &e.variant.(Cannonball)
+                // TEST
+                when true {
+                    if rl.IsGamepadButtonPressed(0, .LEFT_FACE_DOWN) do v.health -= 100
+                    if rl.IsGamepadButtonPressed(0, .LEFT_FACE_UP)   do v.health += 100
+                }
+            }
 
-                t := linalg.unlerp(v.origin, v.target, e.pos)
+            if !pos_in_bounds(e.pos) {
+                damage_ship(&v, OUT_OF_BOUNDS_DAMAGE * dt)
+            }
 
-                t.x = f32_normalize(t.x)
-                t.y = f32_normalize(t.y)
+            if v.health <= 0 {
+                append(&entities_to_remove, i16(i))
 
-                if t.x >= 1 || t.y >= 1 {
-                    append(&entities_to_remove, i16(i))
+                explosion := Entity {
+                    variant = Explosion {
+                        timer = EXPLOSION_TIME
+                    },
 
-                    // check if cannonball hit ship
-                    indices := world_tile_entities(pos_to_world_tile(e.pos))
+                    pos = e.pos,
+                    vel = {},
+                }
 
-                    for i in indices {
-                        e := &entities[i]
+                append(&entities, explosion)
 
+                if i == PLAYER_ENTITY_INDEX {
+                    player_is_alive = false
+                    player_last_pos = e.pos
+                }
+            }
 
-                        ship, ok := &e.variant.(Ship)
+            for &c in v.cannon_timers[:v.cannon_count] {
+                if c > 0 {
+                    c -= dt
+                }
+            }
 
-                        if ok {
-                            damage_ship(ship, 10)
-                        }
+        case Cannonball:
+            t := linalg.unlerp(v.origin, v.target, e.pos)
+
+            t.x = f32_normalize(t.x)
+            t.y = f32_normalize(t.y)
+
+            if t.x >= 1 || t.y >= 1 {
+                append(&entities_to_remove, i16(i))
+
+                // check if cannonball hit ship
+                indices := world_tile_entities(pos_to_world_tile(e.pos))
+
+                for i in indices {
+                    e := &entities[i]
+
+                    ship, ok := &e.variant.(Ship)
+
+                    if ok {
+                        damage_ship(ship, 100)
                     }
                 }
+            }
 
-                avg_t := (t.x+t.y)*.5
+            avg_t := (t.x+t.y)*.5
 
-                if avg_t > .5 {
-                    v.scale = (1 - (avg_t - .5)*2)*CANNONBALL_SCALE_MAX
-                } else {
-                    v.scale = avg_t*2*CANNONBALL_SCALE_MAX
-                }
+            if avg_t > .5 {
+                v.scale = (1 - (avg_t - .5)*2)*CANNONBALL_SCALE_MAX
+            } else {
+                v.scale = avg_t*2*CANNONBALL_SCALE_MAX
+            }
 
-                v.origin += dt * v.vel_from_player
-                v.target += dt * v.vel_from_player
+            v.origin += dt * v.vel_from_player
+            v.target += dt * v.vel_from_player
 
-                entity_move(&e, {}, 0)
-        }
+            entity_move(&e, {}, 0)
+
+        case Explosion:
+            v.timer -= dt
+            if v.timer < 0 {
+                append(&entities_to_remove, i16(i))
+            } else {
+                t := (v.timer / EXPLOSION_TIME)
+                n := len(explosion_sprites)
+                sprite_index := clamp(int(t * f32(n)), 0, n)
+                v.sprite = explosion_sprites[sprite_index]
+            }
     }
 
     for i in entities_to_remove {
         unordered_remove(&entities, int(i))
     }
 
-    camera.target = player.pos
+    camera.target = player_is_alive ? get_player().pos : player_last_pos
     camera.offset = screen_end()*.5
 }
 
 CANNONBALL_SCALE_MAX :: 2
 
 draw :: proc() {
-    rl.ClearBackground(hex_color(0xff00ff))
+    rl.ClearBackground(hex_color(0xABE3F5))
 
     {
         rl.BeginMode2D(camera)
@@ -197,6 +234,9 @@ draw :: proc() {
 
                 case Cannonball:
                     draw_sprite(cannonball_sprite, e.pos, 0, v.scale)
+
+                case Explosion:
+                    draw_sprite(v.sprite, e.pos, 0)
             }
         }
     }

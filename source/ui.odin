@@ -146,7 +146,7 @@ ui_init :: proc() {
     rl.SetTextureFilter(ui_spritesheet, .TRILINEAR)
 }
 
-draw_health_bar :: proc(start, end: v2, health: i32) {
+draw_health_bar :: proc(start, end: v2, health: f32) {
     health_bar_sprite := ui_sprites["progress_white_smallimg"]
 
     health_bar_height := f32(health_bar_sprite.height)
@@ -180,6 +180,7 @@ draw_health_bar :: proc(start, end: v2, health: i32) {
 
 draw_ui :: proc() {
     player := get_player()^
+    ship := player.variant.(Ship)
 
     dims := screen_end()
 
@@ -188,5 +189,20 @@ draw_ui :: proc() {
     player_health_bar_start += player_health_bar_padding
     player_health_bar_end := v2 {dims.x * .5, player_health_bar_padding.y}
 
-    draw_health_bar(player_health_bar_start, player_health_bar_end, player.variant.(Ship).health)
+    draw_health_bar(player_health_bar_start, player_health_bar_end, ship.health)
+
+    available_cannons := 0
+    for c in ship.cannon_timers[:ship.cannon_count] {
+        available_cannons += int(c <= 0)
+    }
+
+    cannonballs_pos := player_health_bar_start
+    cannonballs_pos.x += 6
+    cannonballs_pos.y -= dims.y*0.03
+
+    for _ in 0 ..< available_cannons {
+        draw_sprite(cannonball_sprite, cannonballs_pos, 0)
+
+        cannonballs_pos.x += f32(cannonball_sprite.width) + 1
+    }
 }
