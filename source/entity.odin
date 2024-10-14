@@ -112,18 +112,10 @@ entities: [dynamic]Entity
 ship_dims: [2]i32
 cannonball_dims: [2]i32
 
+player_sprite_index :: 3
+
 entities_init :: proc() {
-    player_sprite_index :: 3
-
     add_ship(player_sprite_index)
-
-    for _ in 0 ..< ENEMY_COUNT {
-        sprite: i32
-        for sprite == 0 || sprite == player_sprite_index {
-            sprite = auto_cast rand.int_max(len(ship_sprites))
-        }
-        add_ship(sprite)
-    }
 
     ship_sprite := sprites["ship (1)"]
     ship_dims.x = i32(ship_sprite.width)
@@ -148,6 +140,14 @@ add_ship :: proc(sprite: i32) {
         pos = pos,
     }
     append(&entities, e)
+}
+
+add_enemy :: proc() {
+    sprite: i32
+    for sprite == 0 || sprite == player_sprite_index {
+        sprite = auto_cast rand.int_max(len(ship_sprites))
+    }
+    add_ship(sprite)
 }
 
 fake_player := Entity {

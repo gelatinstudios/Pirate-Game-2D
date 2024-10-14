@@ -3,6 +3,7 @@ package pirates
 
 import "core:fmt"
 import "core:math/linalg"
+import "core:slice"
 
 import rl "vendor:raylib"
 
@@ -70,6 +71,13 @@ update :: proc() {
 
     world_tile_entity_map_set()
 
+    update_entities()
+
+    camera.target = player_is_alive ? get_player().pos : player_last_pos
+    camera.offset = screen_end()*.5
+}
+
+update_entities :: proc() {
     dt := rl.GetFrameTime()
 
     entities_to_remove: [dynamic]i16
@@ -194,12 +202,14 @@ update :: proc() {
             }
     }
 
-    for i in entities_to_remove {
-        unordered_remove(&entities, int(i))
+    entities_new_len := 0
+    for _, i in entities {
+        if !slice.contains(entities_to_remove[:], i16(i)) {
+            entities[entities_new_len] = entities[i]
+            entities_new_len += 1
+        }
     }
-
-    camera.target = player_is_alive ? get_player().pos : player_last_pos
-    camera.offset = screen_end()*.5
+    resize(&entities, entities_new_len)
 }
 
 CANNONBALL_SCALE_MAX :: 2
