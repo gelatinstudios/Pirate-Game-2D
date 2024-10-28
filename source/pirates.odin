@@ -18,6 +18,8 @@ WORLD_MAX_Y ::  (WORLD_TILE_COUNT_Y/2) * tile_height
 WORLD_MIN :: v2 {WORLD_MIN_X, WORLD_MIN_Y}
 WORLD_MAX :: v2 {WORLD_MAX_X, WORLD_MAX_Y}
 
+MAX_ENEMY_COUNT :: 100
+ENEMY_SPAWN_TIME :: 10
 
 Cannon_State :: enum { Inactive, Aiming, Fired }
 
@@ -28,6 +30,8 @@ cannon_state: Cannon_State
 cannon_aim: v2
 player_is_alive: bool
 player_last_pos: v2
+spawned_enemy_count: int
+enemy_spawn_timer: f32
 
 OUT_OF_BOUNDS_DAMAGE :: 50
 
@@ -70,6 +74,20 @@ update :: proc() {
     }
 
     world_tile_entity_map_set()
+
+    { // enemy spawn
+        dt := rl.GetFrameTime()
+
+        if spawned_enemy_count < MAX_ENEMY_COUNT {
+            enemy_spawn_timer -= dt
+            if enemy_spawn_timer <= 0 {
+                enemy_spawn_timer = ENEMY_SPAWN_TIME
+                spawned_enemy_count += 1
+
+                add_enemy()
+            }
+        }
+    }
 
     update_entities()
 
@@ -122,13 +140,15 @@ update_entities :: proc() {
                     if rl.IsGamepadButtonPressed(0, .LEFT_FACE_DOWN) do v.health -= 100
                     if rl.IsGamepadButtonPressed(0, .LEFT_FACE_UP)   do v.health += 100
                 }
+            } else { // Enemy ship update
+                
             }
 
             if !pos_in_bounds(e.pos) {
                 damage_ship(&v, OUT_OF_BOUNDS_DAMAGE * dt)
             }
 
-            if v.health <= 0 {
+            if v.health <= 0 { // Ship Death
                 append(&entities_to_remove, i16(i))
 
                 explosion := Entity {
@@ -148,6 +168,7 @@ update_entities :: proc() {
                 }
             }
 
+            // cannon management
             for &c in v.cannon_timers[:v.cannon_count] {
                 if c > 0 {
                     c -= dt
