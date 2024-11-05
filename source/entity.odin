@@ -14,6 +14,8 @@ Ship :: struct {
     sprite: i32, // ship sprite index
     rot: f32,
     health: f32,
+    cannon_state: Cannon_State,
+    cannon_aim: v2,
     cannon_count: i32,
     cannon_timers: [SHIP_MAX_CANNONS]f32,
 }
@@ -59,36 +61,87 @@ get_entity_dims :: proc(e: Entity) -> [2]i32 {
     unreachable()
 }
 
+get_entity_dims_max :: proc(e: Entity) -> i32 {
+    dims := get_entity_dims(e)
+    return max(dims.x, dims.y)
+}
 
 
 
-ship_update :: proc(e: ^Entity, input: v2) {
-    SHIP_ACC :: 20
-    SHIP_FRICTION :: 0.0001
-    LAND_FRICTION :: SHIP_FRICTION * 15
-    SHIP_MAX_VEL :: 70 // not really max, used for rotation
+ship_update :: proc(e: ^Entity, input: v2, cannon_aim: v2) {
+    ship := &e.variant.(Ship)   
 
-    dt := rl.GetFrameTime()
+    {// movement update
+        SHIP_ACC :: 20
+        SHIP_FRICTION :: 0.0001
+        LAND_FRICTION :: SHIP_FRICTION * 15
+        SHIP_MAX_VEL :: 70 // not really max, used for rotation
 
-    ship := &e.variant.(Ship)
+        dt := rl.GetFrameTime()
 
-    a := angle_to_v2(ship.rot)
-    b := linalg.normalize0(input)
+        a := angle_to_v2(ship.rot)
+        b := linalg.normalize0(input)
 
-    vel_t := linalg.length(e.vel) / SHIP_MAX_VEL
-    vel_t = clamp(vel_t*dt, 0, 1)
+        vel_t := linalg.length(e.vel) / SHIP_MAX_VEL
+        vel_t = clamp(vel_t*dt, 0, 1)
 
-    new_dir := linalg.lerp(a, b, vel_t)
-    ship.rot = v2_to_angle(new_dir)
+        new_dir := linalg.lerp(a, b, vel_t)
+        ship.rot = v2_to_angle(new_dir)
 
-    t := linalg.dot(input * SHIP_ACC, new_dir)
+        t := linalg.dot(input * SHIP_ACC, new_dir)
 
-    friction: f32 = SHIP_FRICTION
-    if pos_has_land(e.pos) {
-        friction += LAND_FRICTION
+        friction: f32 = SHIP_FRICTION
+        if pos_has_land(e.pos) {
+            friction += LAND_FRICTION
+        }
+
+        entity_move(e, input * SHIP_ACC * t, friction)
     }
 
-    entity_move(e, input * SHIP_ACC * t, friction)
+    {// cannon stuff update
+        if linalg.length(cannon_aim) > 0 {
+            switch ship.cannon_state {
+                case .Inactive: ship.cannon_state = .Aiming
+                case .Aiming:   // still aiming
+                case .Fired:    // nothing - one frame time-out
+            }
+        } else {
+            switch ship.cannon_state {
+                case .Inactive: // still inactive
+                case .Aiming:   ship.cannon_state = .Fired
+                case .Fired:    ship.cannon_state = .Inactive
+            }
+        }
+
+        switch ship.cannon_state {
+            case .Inactive: // do nothing
+
+            case .Aiming:
+                ship.cannon_aim = cannon_aim
+
+            case .Fired:
+                for &c in ship.cannon_timers[:ship.cannon_count] {
+                    if c <= 0 {
+                        c = CANNONBALL_GEN_TIME
+
+                        vel := linalg.normalize0(ship.cannon_aim) * CANNONBALL_VEL_INIT
+                        vel += e.vel
+                        e := Entity {
+                            variant = Cannonball {
+                                origin = e.pos,
+                                target = e.pos + ship.cannon_aim * 12, // TODO: this is wrong
+                                vel_from_player = e.vel,
+                            },
+                            pos = e.pos,
+                            vel = vel,
+                        }
+                        append(&entities, e)
+                        
+                        break
+                    }
+                }
+        }
+    }
 }
 
 

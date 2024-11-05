@@ -5,8 +5,8 @@ import rl "vendor:raylib"
 import "core:math"
 import "core:math/rand"
 
-WORLD_TILE_COUNT_X :: 100
-WORLD_TILE_COUNT_Y :: 100
+WORLD_TILE_COUNT_X :: 20
+WORLD_TILE_COUNT_Y :: 20
 
 WORLD_TILE_COUNT_TOTAL :: WORLD_TILE_COUNT_X * WORLD_TILE_COUNT_Y
 

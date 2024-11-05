@@ -19,6 +19,7 @@ WORLD_MIN :: v2 {WORLD_MIN_X, WORLD_MIN_Y}
 WORLD_MAX :: v2 {WORLD_MAX_X, WORLD_MAX_Y}
 
 MAX_ENEMY_COUNT :: 100
+ENEMY_SPAWN_BATCH_COUNT :: 10
 ENEMY_SPAWN_TIME :: 10
 
 Cannon_State :: enum { Inactive, Aiming, Fired }
@@ -26,8 +27,6 @@ Cannon_State :: enum { Inactive, Aiming, Fired }
 
 is_paused: bool
 camera: rl.Camera2D
-cannon_state: Cannon_State
-cannon_aim: v2
 player_is_alive: bool
 player_last_pos: v2
 spawned_enemy_count: int
@@ -35,7 +34,7 @@ enemy_spawn_timer: f32
 
 OUT_OF_BOUNDS_DAMAGE :: 50
 
-CANNON_AIM_MAG :: 10
+CANNON_AIM_MAX :: 10
 CANNONBALL_VEL_INIT :: 100
 
 init :: proc() {
@@ -47,6 +46,7 @@ init :: proc() {
     tiles_init()
     world_tiles_init()
     entities_init()
+    enemy_ai_init()
 
     camera.zoom = 1
     player_is_alive = true // might move to level begin or something
@@ -59,23 +59,9 @@ init :: proc() {
 }
 
 update :: proc() {
-    if rl.IsGamepadButtonDown(0, .RIGHT_TRIGGER_1) {
-        switch cannon_state {
-            case .Inactive: cannon_state = .Aiming
-            case .Aiming:   // still aiming
-            case .Fired:    // nothing - one frame time-out
-        }
-    } else {
-        switch cannon_state {
-            case .Inactive: // still inactive
-            case .Aiming:   cannon_state = .Fired
-            case .Fired:    cannon_state = .Inactive
-        }
-    }
-
     world_tile_entity_map_set()
 
-    { // enemy spawn
+     when false { // enemy spawn
         dt := rl.GetFrameTime()
 
         if spawned_enemy_count < MAX_ENEMY_COUNT {
@@ -84,8 +70,16 @@ update :: proc() {
                 enemy_spawn_timer = ENEMY_SPAWN_TIME
                 spawned_enemy_count += 1
 
-                add_enemy()
+                for _ in 0 ..< ENEMY_SPAWN_BATCH_COUNT {
+                    add_enemy()
+                }
             }
+        }
+    } else { // for testing with one enemy
+        @(static) b := false
+        if !b {
+            b = true
+            add_enemy()
         }
     }
 
@@ -104,47 +98,23 @@ update_entities :: proc() {
     for &e, i in entities do switch &v in e.variant {
         case Ship:
             if i == PLAYER_ENTITY_INDEX {
-                ship_update(&e, get_left_stick())
-
-                switch cannon_state {
-                    case .Inactive: // do nothing
-
-                    case .Aiming:
-                        cannon_aim = get_right_stick() * CANNON_AIM_MAG
-
-                    case .Fired:
-                        for &c in v.cannon_timers[:v.cannon_count] {
-                            if c <= 0 {
-                                c = CANNONBALL_GEN_TIME
-
-                                vel := linalg.normalize0(cannon_aim) * CANNONBALL_VEL_INIT
-                                vel += e.vel
-                                e := Entity {
-                                    variant = Cannonball {
-                                        origin = e.pos,
-                                        target = e.pos + cannon_aim * 12, // TODO: this is wrong
-                                        vel_from_player = e.vel,
-                                    },
-                                    pos = e.pos,
-                                    vel = vel,
-                                }
-                                append(&entities, e)
-                                
-                                break
-                            }
-                        }
+                cannon_aim: v2
+                if rl.IsGamepadButtonDown(0, .RIGHT_TRIGGER_1) {
+                    cannon_aim = get_right_stick() * CANNON_AIM_MAX
                 }
+                ship_update(&e, get_left_stick(), cannon_aim)
 
                 // TEST
                 when true {
                     if rl.IsGamepadButtonPressed(0, .LEFT_FACE_DOWN) do v.health -= 100
                     if rl.IsGamepadButtonPressed(0, .LEFT_FACE_UP)   do v.health += 100
                 }
-            } else { // Enemy ship update
-                
+            } else { // non-players are enemies
+                input, cannon_aim := enemy_ai(e)
+                ship_update(&e, input, cannon_aim)
             }
 
-            if !pos_in_bounds(e.pos) {
+            if !pos_in_bounds(e.pos) { // Out-Of-Bounds Damage
                 damage_ship(&v, OUT_OF_BOUNDS_DAMAGE * dt)
             }
 
@@ -251,7 +221,8 @@ draw :: proc() {
 
                     health_bar_padding :: 10
 
-                    l := cast(f32) max(get_entity_dims(e).x, get_entity_dims(e).y)
+                    dims := get_entity_dims(e)
+                    l := cast(f32) get_entity_dims_max(e)
 
                     health_bar_start := e.pos
                     health_bar_start.x -= l*.5
