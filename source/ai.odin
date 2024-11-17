@@ -17,12 +17,9 @@ enemy_ai :: proc(e: Entity) -> (dir: v2, cannon_aim: v2) {
     to_player := player.pos - e.pos
     dist_to_player := linalg.length(to_player)
     
-    fmt.println(dist_to_player)
-
     if dist_to_player > enemy_attack_radius {
         dir = linalg.normalize0(to_player) * min((dist_to_player / 3000), 1)
     } else if dist_to_player <= CANNON_AIM_MAX {
-        fmt.println("test")
         cannon_aim = to_player
     }
 

@@ -146,6 +146,9 @@ update_entities :: proc() {
             }
 
         case Cannonball:
+            v.origin += dt * v.vel_from_player
+            v.target += dt * v.vel_from_player
+
             t := linalg.unlerp(v.origin, v.target, e.pos)
 
             t.x = f32_normalize(t.x)
@@ -170,14 +173,13 @@ update_entities :: proc() {
 
             avg_t := (t.x+t.y)*.5
 
-            if avg_t > .5 {
-                v.scale = (1 - (avg_t - .5)*2)*CANNONBALL_SCALE_MAX
-            } else {
-                v.scale = avg_t*2*CANNONBALL_SCALE_MAX
+            s := avg_t * 2
+            if s > 1 {
+                s -= 1
+                s = 1 - s
             }
 
-            v.origin += dt * v.vel_from_player
-            v.target += dt * v.vel_from_player
+            v.scale = s * CANNONBALL_SCALE_MAX
 
             entity_move(&e, {}, 0)
 
